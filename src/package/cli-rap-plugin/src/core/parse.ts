@@ -2,7 +2,11 @@ import { Module, Interface, Intf  } from '../types'
 import * as fs from 'fs'
 import * as path from 'path'
 import prettier from 'prettier'
-let cacheTypes: any = {}
+let typeDefinedMap: any = {}
+let cacheTypes: string[] = []
+let currentAllRspProperties: Array<Interface.IProperty>
+let currentAllDataProperties: Array<Interface.IProperty>
+
 function generateApiTypeCode(modules: Array<Module>): string {
   let modulesStr = ''
   for (const module of modules) {
@@ -93,11 +97,14 @@ export function generateCode(json: any):string {
 }
 function generateComment(intf: Intf) {
   const intfProperties = parseIntfFunctionType(intf.properties)
+  currentAllDataProperties = intfProperties.data
+  currentAllRspProperties = intfProperties.res
+  generateJsDocTypeDef(`${intf.name}Rsp`, intfProperties.res)
   return `
 /**
  * ${intf.description}
- ${generatePropertyComment(intfProperties.data, '@param', 'object')}
- ${generateJsDocTypeDef(`${intf.name}Rsp`, intfProperties.res)}
+ * @param {object} data
+ ${generatePropertyComment(intfProperties.data, '@param', 'data')}
  * @returns {Promise<${intf.name}Rsp>}
  */
 `
@@ -113,17 +120,20 @@ function generatePropertyComment(properties: Array<Interface.IProperty>, tag: st
   for(let i = 0; i < properties.length; i++) {
     let addStr = ''
     const property = properties[i]
+    if (!property.id) continue
     if (property.type === 'object' || property.type === 'array' ) {
-      const child = properties.filter((item, index) => {
+      const allProperties = property.scope === 'response' ? currentAllRspProperties : currentAllDataProperties 
+      const child = allProperties.filter((item, index) => {
         if (item.parentId === property.id) {
-          properties.splice(index, 1)
+          allProperties.splice(index, 1, {} as Interface.IProperty)
           return true
         }
       })
       if (property.type === 'object') {
-        addStr = `\n * ${tag} {${property.type}} ${property.name} - ${property.description}\n * ${generatePropertyComment(child, tag, `${nsp}.${property.name}`)} - ${property.description}`
+        addStr = `\n * ${tag} {${property.type}} ${nsp ? `${nsp}.` : ''}${property.name} - ${property.description}${generatePropertyComment(child, tag, `${nsp ? `${nsp}.` : ''}${property.name}`)}`
       } else {
-        addStr = `\n * ${generateJsDocTypeDef(`${property.name}Type`, child)}\n *${tag} {${property.name}Type[]} ${property.name} - ${property.description}`
+        generateJsDocTypeDef(`${property.name}Type`, child)
+        addStr = `\n * ${tag} {${property.name}Type[]}  ${nsp ? `${nsp}.` : ''}${property.name} - ${property.description}`
       }
     } else {
       addStr = `\n * ${tag} {${property.type}} ${nsp ? `${nsp}.` : ''}${property.name} - ${property.description}` 
@@ -133,23 +143,33 @@ function generatePropertyComment(properties: Array<Interface.IProperty>, tag: st
   return commentStr
 }
 function generateJsDocTypeDef(typeName:string, properties: Array<Interface.IProperty>) {
-    cacheTypes[typeName] = true
-    let propertiesStr = generatePropertyComment(properties, '@property')
-    return `
+  if (typeDefinedMap[typeName]) return
+  typeDefinedMap[typeName] = true
+  const propertiesStr = generatePropertyComment(properties, '@property')  
+  const typedef = `
+/**
  * @typedef ${typeName}${propertiesStr}
+ */
 `
+  cacheTypes.push(typedef)
 }
 
+function mergeJsDocTypeDef() {
+  return cacheTypes.reduce((p, n) => p+n, '')
+}
 function generateInterfaceCodeJs(interfaces: Array<Intf>) {
-  return interfaces.reduce((p, n) => {
-      // 每个模块重置types
-      cacheTypes = {}
+  const funcDefine = interfaces.reduce((p, n) => {
     return p += `${generateComment(n)} export function ${generateInterfaceCode([n])}`
   }, '')
+  const typeDefine = mergeJsDocTypeDef()
+  return typeDefine + funcDefine
 }
 export function generateJsCode(json: any) {
   const modules: Array<Module> = json.modules
   const moduleCodes: Array<CodeContent> = modules.map((module) => {
+    // 每个模块重置types
+    typeDefinedMap = {}
+    cacheTypes = []
     return {
       filePath: path.resolve(__dirname, '../../../../../src', 'api', `${module.name}.js`),
       content: generateInterfaceCodeJs(module.interfaces)

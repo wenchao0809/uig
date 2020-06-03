@@ -26,7 +26,10 @@ exports.writeFile = exports.generateJsCode = exports.generateCode = void 0;
 var fs = __importStar(require("fs"));
 var path = __importStar(require("path"));
 var prettier_1 = __importDefault(require("prettier"));
-var cacheTypes = {};
+var typeDefinedMap = {};
+var cacheTypes = [];
+var currentAllRspProperties;
+var currentAllDataProperties;
 function generateApiTypeCode(modules) {
     var modulesStr = '';
     for (var _i = 0, modules_1 = modules; _i < modules_1.length; _i++) {
@@ -107,7 +110,10 @@ function generateCode(json) {
 exports.generateCode = generateCode;
 function generateComment(intf) {
     var intfProperties = parseIntfFunctionType(intf.properties);
-    return "\n/**\n * " + intf.description + "\n " + generatePropertyComment(intfProperties.data, '@param', 'object') + "\n " + generateJsDocTypeDef(intf.name + "Rsp", intfProperties.res) + "\n * @returns {Promise<" + intf.name + "Rsp>}\n */\n";
+    currentAllDataProperties = intfProperties.data;
+    currentAllRspProperties = intfProperties.res;
+    generateJsDocTypeDef(intf.name + "Rsp", intfProperties.res);
+    return "\n/**\n * " + intf.description + "\n * @param {object} data\n " + generatePropertyComment(intfProperties.data, '@param', 'data') + "\n * @returns {Promise<" + intf.name + "Rsp>}\n */\n";
 }
 /**
  *
@@ -120,18 +126,22 @@ function generatePropertyComment(properties, tag, nsp) {
     var _loop_2 = function (i) {
         var addStr = '';
         var property = properties[i];
+        if (!property.id)
+            return "continue";
         if (property.type === 'object' || property.type === 'array') {
-            var child = properties.filter(function (item, index) {
+            var allProperties_1 = property.scope === 'response' ? currentAllRspProperties : currentAllDataProperties;
+            var child = allProperties_1.filter(function (item, index) {
                 if (item.parentId === property.id) {
-                    properties.splice(index, 1);
+                    allProperties_1.splice(index, 1, {});
                     return true;
                 }
             });
             if (property.type === 'object') {
-                addStr = "\n * " + tag + " {" + property.type + "} " + property.name + " - " + property.description + "\n * " + generatePropertyComment(child, tag, nsp + "." + property.name) + " - " + property.description;
+                addStr = "\n * " + tag + " {" + property.type + "} " + (nsp ? nsp + "." : '') + property.name + " - " + property.description + generatePropertyComment(child, tag, "" + (nsp ? nsp + "." : '') + property.name);
             }
             else {
-                addStr = "\n * " + generateJsDocTypeDef(property.name + "Type", child) + "\n *" + tag + " {" + property.name + "Type[]} " + property.name + " - " + property.description;
+                generateJsDocTypeDef(property.name + "Type", child);
+                addStr = "\n * " + tag + " {" + property.name + "Type[]}  " + (nsp ? nsp + "." : '') + property.name + " - " + property.description;
             }
         }
         else {
@@ -145,20 +155,29 @@ function generatePropertyComment(properties, tag, nsp) {
     return commentStr;
 }
 function generateJsDocTypeDef(typeName, properties) {
-    cacheTypes[typeName] = true;
+    if (typeDefinedMap[typeName])
+        return;
+    typeDefinedMap[typeName] = true;
     var propertiesStr = generatePropertyComment(properties, '@property');
-    return "\n * @typedef " + typeName + propertiesStr + "\n";
+    var typedef = "\n/**\n * @typedef " + typeName + propertiesStr + "\n */\n";
+    cacheTypes.push(typedef);
+}
+function mergeJsDocTypeDef() {
+    return cacheTypes.reduce(function (p, n) { return p + n; }, '');
 }
 function generateInterfaceCodeJs(interfaces) {
-    return interfaces.reduce(function (p, n) {
-        // 每个模块重置types
-        cacheTypes = {};
+    var funcDefine = interfaces.reduce(function (p, n) {
         return p += generateComment(n) + " export function " + generateInterfaceCode([n]);
     }, '');
+    var typeDefine = mergeJsDocTypeDef();
+    return typeDefine + funcDefine;
 }
 function generateJsCode(json) {
     var modules = json.modules;
     var moduleCodes = modules.map(function (module) {
+        // 每个模块重置types
+        typeDefinedMap = {};
+        cacheTypes = [];
         return {
             filePath: path.resolve(__dirname, '../../../../../src', 'api', module.name + ".js"),
             content: generateInterfaceCodeJs(module.interfaces)
