@@ -1,0 +1,25 @@
+{
+  "name": "open-cli",
+  "version": "1.0.0",
+  "description": "open-cli",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "rapper": "rapper --type normal --rapperPath \"src/rapper\" --apiUrl \"http://rap2.taobao.org:38080/repository/get?id=254918&token=OTQPexHeiQfDXaq6lnWREwdematwcxjx\" --rapUrl \"http://rap2.taobao.org\""
+  },
+  "author": "dwc",
+  "license": "ISC",
+  "dependencies": {
+    "@types/prettier": "^2.0.1",
+    "axios": "0.19.2",
+    "prettier": "^2.0.5",
+    "rap": "^1.0.3-beta.2",
+    "commander": "^5.1.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^3.1.0",
+    "@typescript-eslint/parser": "^3.1.0",
+    "eslint": "^7.1.0",
+    "typescript": "^3.9.3"
+  }
+}

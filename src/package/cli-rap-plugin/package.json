@@ -1,0 +1,16 @@
+{
+  "name": "cli-rap-plugin",
+  "version": "1.0.0",
+  "description": "根据rap模板自动生成ts或者js接口代码",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "commander": "^5.1.0",
+    "latest-version": "^5.1.0",
+    "semver": "^7.3.2"
+  },
+  "author": "wenchao",
+  "license": "ISC"
+}
