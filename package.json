@@ -11,7 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/prettier": "^2.0.1",
-    "axios": "0.19.2",
+    "axios": "0.21.1",
     "prettier": "^2.0.5",
     "rap": "^1.0.3-beta.2",
     "commander": "^5.1.0"
